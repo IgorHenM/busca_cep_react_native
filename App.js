@@ -2,17 +2,61 @@ import { StatusBar } from 'expo-status-bar';
 import { useState } from 'react';
 import { Button, Pressable, StyleSheet, Text, TextInput, View, Image } from 'react-native';
 import { getCepInformation } from './services/cep-service';
+import * as Animatable from 'react-native-animatable';
 
 export default function App() {
   var [cep, setCep] = useState('');
-  var [hasInfos, setHasInfos] = useState(null);
-  var [showOverflow, setShowOverflow] = useState(true);//inverter
+  var [hasInfos, setHasInfos] = useState(false);
+  var [showOverflow, setShowOverflow] = useState(false);//inverter
   var [showErrorModal, setShowErrorModal] = useState(false);//inverter
   var [errorDescription, setErrorDescription] = useState('Erro na busca das informações');
-  var [showLoading, setShowLoading] = useState(true);
+  var [showLoading, setShowLoading] = useState(false);
+  var [infos, setInfos] = useState({});
+
+  const imageLoading = require('./assets/loading-svgrepo-com.png');
 
   async function searchCep() {
+    setHasInfos(false);
 
+    const formattedCep = cep.replace('-', '');
+    let infos = null;
+
+    if (formattedCep.length < 8) {
+      toogleErrorModal('O CEP deve possuir 8 números ou atender ao seguinte formato: 00000-000');
+      return;
+    }
+
+    try {
+      openLoading();
+      infos = await getCepInformation(formattedCep);
+      closeLoading();
+    } catch (e) {
+      toogleErrorModal('Serviço de busca indisponivel.')
+    }
+
+    if (infos.data) {
+      if (infos.data.erro) {
+        toogleErrorModal('Erro na consulta, CEP inválido ou serviço indisponivel.');
+        return;
+      }
+  
+      const {cep, logradouro, complemento, bairro, localidade, uf, estado, regiao, ddd} = infos.data;
+  
+      setInfos({
+        cep: cep,
+        logradouro: logradouro,
+        complemento: complemento,
+        bairro: bairro,
+        localidade: localidade,
+        uf: uf,
+        estado: estado,
+        regiao: regiao,
+        ddd: ddd
+      });
+  
+      setHasInfos(true);
+      
+    }
   }
 
   function toogleErrorModal(description) {
@@ -26,6 +70,16 @@ export default function App() {
     setShowOverflow(toogleOverflow);
     setShowErrorModal(toogleModal);
 
+  }
+
+  function openLoading() {
+    setShowOverflow(true);
+    setShowLoading(true);
+  }
+
+  function closeLoading() {
+    setShowOverflow(false);
+    setShowLoading(false);
   }
 
   return (
@@ -45,11 +99,17 @@ export default function App() {
             </Pressable>
           </View>
         </View>)}
-        {showLoading && (<View>
-          <Image
-            source={require('./assets/loading-svgrepo-com.svg')}
+        {showLoading && (<View style={styles.loading_panel}>
+          <Animatable.Image
+            animation='rotate'
+            duration={1000}
+            iterationCount='infinite'
+            useNativeDriver={true}
+            source={imageLoading}
             resizeMode='contain'
+            style={styles.icon_loading}
           />
+          <Text style={styles.loading_label}>Carregando...</Text>
         </View>)}
       </View>)}
       <Text style={styles.title}>Busque informações de um CEP</Text>
@@ -61,46 +121,46 @@ export default function App() {
           value={cep}
           style={styles.input_cep}
         />
-        <Pressable style={styles.btn_style}>
+        <Pressable style={styles.btn_style} onPress={searchCep}>
           <Text style={styles.text}>Buscar</Text>
         </Pressable>
       </View>
-      {hasInfos !== null && (<View style={styles.infos}>
+      {hasInfos && (<View style={styles.infos}>
         <View style={styles.content_info}>
           <Text style={styles.desc_info}>CEP:</Text>
-          <Text style={styles.info_value}>88122-250</Text>
+          <Text style={styles.info_value}>{infos.cep}</Text>
         </View>
         <View style={styles.content_info}>
           <Text style={styles.desc_info}>LOGRADOURO:</Text>
-          <Text style={styles.info_value}>88122-250</Text>
+          <Text style={styles.info_value}>{infos.logradouro}</Text>
         </View>
         <View style={styles.content_info}>
           <Text style={styles.desc_info}>COMPLEMENTO:</Text>
-          <Text style={styles.info_value}>88122-250</Text>
+          <Text style={styles.info_value}>{infos.complemento}</Text>
         </View>
         <View style={styles.content_info}>
           <Text style={styles.desc_info}>BAIRRO:</Text>
-          <Text style={styles.info_value}>88122-250</Text>
+          <Text style={styles.info_value}>{infos.bairro}</Text>
         </View>
         <View style={styles.content_info}>
           <Text style={styles.desc_info}>LOCALIDADE:</Text>
-          <Text style={styles.info_value}>88122-250</Text>
+          <Text style={styles.info_value}>{infos.localidade}</Text>
         </View>
         <View style={styles.content_info}>
           <Text style={styles.desc_info}>UF:</Text>
-          <Text style={styles.info_value}>88122-250</Text>
+          <Text style={styles.info_value}>{infos.uf}</Text>
         </View>
         <View style={styles.content_info}>
           <Text style={styles.desc_info}>ESTADO:</Text>
-          <Text style={styles.info_value}>88122-250</Text>
+          <Text style={styles.info_value}>{infos.estado}</Text>
         </View>
         <View style={styles.content_info}>
           <Text style={styles.desc_info}>REGIÃO:</Text>
-          <Text style={styles.info_value}>88122-250</Text>
+          <Text style={styles.info_value}>{infos.regiao}</Text>
         </View>
         <View style={styles.content_info}>
           <Text style={styles.desc_info}>DDD:</Text>
-          <Text style={styles.info_value}>88122-250</Text>
+          <Text style={styles.info_value}>{infos.ddd}</Text>
         </View>
       </View>)}
       <StatusBar style="auto" />
@@ -160,11 +220,13 @@ const styles = StyleSheet.create({
     backgroundColor: '#d9d9d9',
     width: '90%',
     marginTop: '15%',
-    borderRadius: 5
+    borderRadius: 5,
+    padding: 10
   },
   content_info: {
     display: 'flex',
-    flexDirection: 'row'
+    flexDirection: 'row',
+    marginBottom: 20
   },
   desc_info: {
     fontWeight: 'bold',
@@ -180,14 +242,13 @@ const styles = StyleSheet.create({
     position: 'absolute',
     zIndex: 100,
     backgroundColor: '#00000060',
+    alignItems: 'center',
+    justifyContent: 'center'
   },
   error_modal: {
     width: '90%',
     height: '17%',
     backgroundColor: '#ffffff',
-    transform: 'translate(-50%, -50%)',
-    top: '50%',
-    left: '50%',
     borderRadius: 5
   },
   error_header: {
@@ -225,5 +286,18 @@ const styles = StyleSheet.create({
     paddingLeft: 4,
     paddingRight: 4,
     borderRadius: 5
+  },
+  icon_loading: {
+    width: 40,
+    height: 40,
+    filter: 'invert(100%)'
+  },
+  loading_panel: {
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  loading_label: {
+    color: '#ffffff',
+    marginTop: 10
   }
 });
